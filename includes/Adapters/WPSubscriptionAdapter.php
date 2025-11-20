@@ -39,56 +39,38 @@ class WPSubscriptionAdapter implements SubscriptionPluginInterface
 
     public function get_product_period($product_id)
     {
-        $product = wc_get_product($product_id);
-        return $product->get_meta('_subscrpt_timing_option'); // e.g., 'month', 'year'
+        return Helper::get_product_period($product_id);
     }
 
     public function get_product_interval($product_id)
     {
-        $product = wc_get_product($product_id);
-        return (int) $product->get_meta('_subscrpt_timing_per');
+        return Helper::get_product_interval($product_id);
     }
 
     public function get_product_length($product_id)
     {
-        $product = wc_get_product($product_id);
-        return (int) $product->get_meta('_subscrpt_max_no_payment');
+        return Helper::get_product_length($product_id);
     }
 
     public function get_product_trial_length($product_id)
     {
-        $product = wc_get_product($product_id);
-        // Return the numeric trial length (e.g., 3 for "3 days")
-        return (int) $product->get_meta('_subscrpt_trial_timing_per');
+        return Helper::get_product_trial_length($product_id);
     }
 
     public function get_signup_fee($product_id)
     {
-        $product = wc_get_product($product_id);
-        return (float) $product->get_meta('_subscrpt_signup_fee');
+        return Helper::get_product_signup_fee($product_id);
     }
 
     public function get_first_renewal_payment_time($product_id)
     {
-        // Calculate based on current time + trial
-        $product = wc_get_product($product_id);
-        
-        // We need to calculate the actual timestamp.
-        // WPSubscription stores trial period and option.
-        $trial_period = $product->get_meta('_subscrpt_trial_timing_per');
-        $trial_option = $product->get_meta('_subscrpt_trial_timing_option'); // e.g., 'days', 'weeks'
-        
-        if (!empty($trial_period) && !empty($trial_option)) {
-            return strtotime("+{$trial_period} {$trial_option}");
-        }
-        
-        return 0;
+        return Helper::get_first_renewal_payment_time($product_id);
     }
 
     public function create_renewal_order($subscription, $transaction_id)
     {
-        // $subscription is our Wrapper
-        $subscription_id = $subscription->get_id();
+        // $subscription is ID (int)
+        $subscription_id = $subscription;
         
         // Helper::create_renewal_order now returns the order object (after our modification)
         $order = Helper::create_renewal_order($subscription_id);
@@ -103,52 +85,27 @@ class WPSubscriptionAdapter implements SubscriptionPluginInterface
 
     public function update_next_payment_date($subscription, $new_date)
     {
-        update_post_meta($subscription->get_id(), '_subscrpt_next_date', strtotime($new_date));
+        Helper::update_subscription_next_payment_date($subscription, $new_date);
     }
 
     public function cancel_subscription($subscription)
     {
-        wp_update_post([
-            'ID' => $subscription->get_id(),
-            'post_status' => 'cancelled'
-        ]);
+        Helper::cancel_subscription($subscription);
     }
 
     public function pause_subscription($subscription)
     {
-        wp_update_post([
-            'ID' => $subscription->get_id(),
-            'post_status' => 'on-hold'
-        ]);
+        Helper::pause_subscription($subscription);
     }
 
     public function resume_subscription($subscription)
     {
-        wp_update_post([
-            'ID' => $subscription->get_id(),
-            'post_status' => 'active'
-        ]);
+        Helper::resume_subscription($subscription);
     }
 
     public function payment_complete($subscription, $payment_id)
     {
-        // 1. Activate subscription if not active
-        if (!$subscription->has_status('active')) {
-            wp_update_post([
-                'ID' => $subscription->get_id(),
-                'post_status' => 'active'
-            ]);
-        }
-
-        // 2. Add a note to the subscription
-        $comment_id = wp_insert_comment([
-            'comment_author'  => 'Razorpay',
-            'comment_content' => sprintf('Payment received via Razorpay. Transaction ID: %s', $payment_id),
-            'comment_post_ID' => $subscription->get_id(),
-            'comment_type'    => 'order_note',
-        ]);
-        update_comment_meta($comment_id, '_subscrpt_activity', 'Payment Received');
-        update_comment_meta($comment_id, '_subscrpt_activity_type', 'payment_received');
+        Helper::subscription_payment_complete($subscription, $payment_id);
     }
 
     public function get_total($subscription)
