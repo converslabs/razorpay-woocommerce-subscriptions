@@ -91,6 +91,26 @@ class WCSubscriptionsAdapter implements SubscriptionPluginInterface
 
     public function payment_complete($subscription, $payment_id)
     {
-        $subscription->payment_complete($payment_id);
+        $subscription->payment_complete($paymentId);
+    }
+
+    public function get_total($subscription)
+    {
+        return $subscription->get_total();
+    }
+
+    public function get_parent($subscription)
+    {
+        return $subscription->get_parent();
+    }
+
+    public function has_status($subscription, $status)
+    {
+        return $subscription->has_status($status);
+    }
+
+    public function needs_payment($subscription)
+    {
+        return $subscription->needs_payment();
     }
 }

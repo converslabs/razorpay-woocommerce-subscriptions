@@ -124,4 +124,37 @@ interface SubscriptionPluginInterface
      * @return void
      */
     public function payment_complete($subscription, $payment_id);
+
+    /**
+     * Get the total amount for the subscription.
+     *
+     * @param mixed $subscription
+     * @return float
+     */
+    public function get_total($subscription);
+
+    /**
+     * Get the parent order of the subscription.
+     *
+     * @param mixed $subscription
+     * @return \WC_Order|bool
+     */
+    public function get_parent($subscription);
+
+    /**
+     * Check if the subscription has a specific status.
+     *
+     * @param mixed $subscription
+     * @param string $status
+     * @return bool
+     */
+    public function has_status($subscription, $status);
+
+    /**
+     * Check if the subscription needs payment.
+     *
+     * @param mixed $subscription
+     * @return bool
+     */
+    public function needs_payment($subscription);
 }

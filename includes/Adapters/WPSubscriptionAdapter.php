@@ -5,8 +5,6 @@ namespace Razorpay\Subscriptions\Adapters;
 use Razorpay\Subscriptions\Contracts\SubscriptionPluginInterface;
 use SpringDevs\Subscription\Illuminate\Helper;
 
-require_once __DIR__ . '/WPSubscriptionWrapper.php';
-
 class WPSubscriptionAdapter implements SubscriptionPluginInterface
 {
     public function is_active()
@@ -27,27 +25,16 @@ class WPSubscriptionAdapter implements SubscriptionPluginInterface
 
     public function get_subscriptions_for_order($order_id)
     {
-        // WPSubscription returns an array of objects, we need to normalize or handle it
-        // This returns raw DB rows usually
+        // WPSubscription returns an array of objects (rows from DB)
         $subscriptions = Helper::get_subscriptions_from_order($order_id);
         
-        // We need to return something that the main class can iterate over.
-        // The main class expects objects that it can call methods on, OR we need to abstract that too.
-        // For now, let's return the raw objects, but we might need to wrap them if the main class calls methods on them directly.
-        // Looking at the code, the main class calls $subscription->get_parent(), etc.
-        // So we definitely need to wrap these or change the main class to use the adapter for EVERYTHING.
-        
-        // For WPSubscription, the "subscription" is a post of type 'subscrpt_order'.
-        // We should probably return a wrapper or the post ID.
-        
-        $wrapped_subscriptions = [];
+        // Return array of subscription IDs
+        $subscription_ids = [];
         foreach ($subscriptions as $sub) {
-            // $sub is a row from subscrpt_order_relation table
-            // We need the actual subscription post
-            $wrapped_subscriptions[] = new WPSubscriptionWrapper($sub->subscription_id);
+            $subscription_ids[] = (int) $sub->subscription_id;
         }
         
-        return $wrapped_subscriptions;
+        return $subscription_ids;
     }
 
     public function get_product_period($product_id)
@@ -162,5 +149,25 @@ class WPSubscriptionAdapter implements SubscriptionPluginInterface
         ]);
         update_comment_meta($comment_id, '_subscrpt_activity', 'Payment Received');
         update_comment_meta($comment_id, '_subscrpt_activity_type', 'payment_received');
+    }
+
+    public function get_total($subscription)
+    {
+        return Helper::get_subscription_total($subscription);
+    }
+
+    public function get_parent($subscription)
+    {
+        return Helper::get_subscription_parent_order($subscription);
+    }
+
+    public function has_status($subscription, $status)
+    {
+        return Helper::subscription_has_status($subscription, $status);
+    }
+
+    public function needs_payment($subscription)
+    {
+        return Helper::subscription_needs_payment($subscription);
     }
 }

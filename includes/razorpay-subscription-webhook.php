@@ -250,7 +250,9 @@ class RZP_Subscription_Webhook extends RZP_Webhook
         //If webhook trigger on first payment of subscription, then only mark payment completed
         if(($paymentCount == 0) and ($subscription->paid_count == 1) and ($subscription->auth_attempts == 0)) {
 
-            if ($wcSubscription->needs_payment() === true)
+            // if ($wcSubscription->needs_payment() === true)
+            // Use adapter
+            if ($this->adapter->needs_payment($wcSubscription) === true)
             {
                 $this->adapter->payment_complete($wcSubscription, $paymentId);
 
@@ -479,8 +481,8 @@ class RZP_Subscription_Webhook extends RZP_Webhook
 
         $wcSubscription = array_values($wcSubscription)[0];
 
-        if ($wcSubscription->has_status('active') or
-            $wcSubscription->has_status('on-hold'))
+        if ($this->adapter->has_status($wcSubscription, 'active') or
+            $this->adapter->has_status($wcSubscription, 'on-hold'))
         {
             $this->adapter->cancel_subscription($wcSubscription);
 
@@ -603,7 +605,7 @@ class RZP_Subscription_Webhook extends RZP_Webhook
 
         $wcSubscription = array_values($wcSubscription)[0];
 
-        if ( $wcSubscription->has_status( 'active' ))
+        if ( $this->adapter->has_status($wcSubscription, 'active' ))
         {
             $this->adapter->pause_subscription($wcSubscription);
 
@@ -683,7 +685,7 @@ class RZP_Subscription_Webhook extends RZP_Webhook
 
         $wcSubscription = array_values($wcSubscription)[0];
 
-        if ( $wcSubscription->has_status( 'on-hold' ))
+        if ( $this->adapter->has_status($wcSubscription, 'on-hold' ))
         {
             $this->adapter->resume_subscription($wcSubscription);
 

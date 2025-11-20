@@ -307,7 +307,8 @@ class RZP_Subscriptions
 
         $interval     = $this->adapter->get_product_interval($productId);
 
-        $recurringFee = $sub->get_total();
+        $recurringFee = $this->adapter->get_total($sub);
+        $planName     = $period . "_" . $interval . "_" . $recurringFee . "_" . $this->getSetting('key_id');
 
         $planArgs = array(
             'period'   => $this->getProductPeriod($period),
