@@ -91,7 +91,7 @@ class WCSubscriptionsAdapter implements SubscriptionPluginInterface
 
     public function payment_complete($subscription, $payment_id)
     {
-        $subscription->payment_complete($paymentId);
+        $subscription->payment_complete($payment_id);
     }
 
     public function get_total($subscription)
