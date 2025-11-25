@@ -26,16 +26,22 @@ class RZP_Subscriptions
      */
     protected $keySecret;
 
+    /**
+     * @var SubscriptionPluginInterface
+     */
+    protected $adapter;
+
     const RAZORPAY_SUBSCRIPTION_ID       = 'razorpay_subscription_id';
     const RAZORPAY_PLAN_ID               = 'razorpay_wc_plan_id';
     const INR                            = 'INR';
 
-    public function __construct($keyId, $keySecret)
+    public function __construct($keyId, $keySecret, $adapter)
     {
         $this->razorpay = new WC_Razorpay(false);
 
         $this->api = $this->razorpay->getRazorpayApiInstance();
 
+        $this->adapter = $adapter;
     }
 
     /**
@@ -107,7 +113,7 @@ class RZP_Subscriptions
 
     private function getWooCommerceSubscriptionFromOrderId($orderId)
     {
-        $subscriptions = wcs_get_subscriptions_for_order($orderId);
+        $subscriptions = $this->adapter->get_subscriptions_for_order($orderId);
 
         return end($subscriptions);
     }
@@ -122,7 +128,7 @@ class RZP_Subscriptions
 
         $customerId = $this->getCustomerId($order);
 
-        $length = (int) WC_Subscriptions_Product::get_length($product['product_id']);
+        $length = (int) $this->adapter->get_product_length($product['product_id']);
 
         //Subscription will not work in case of never expire case.
 
@@ -151,7 +157,7 @@ class RZP_Subscriptions
 
         // We add the signup fee as an addon
         $signUpFee = wcs_get_price_including_tax(wc_get_product($product['product_id']),
-            array("price" => WC_Subscriptions_Product::get_sign_up_fee($product['product_id']))
+            array("price" => $this->adapter->get_signup_fee($product['product_id']))
         );
 
         if ($signUpFee)
@@ -159,9 +165,9 @@ class RZP_Subscriptions
             $subscriptionData['addons'] = array(array('item' => $this->getUpfrontAmount($signUpFee, $order, $product)));
         }
 
-        $trial_length     = WC_Subscriptions_Product::get_trial_length( $product['product_id'] );
+        $trial_length     = $this->adapter->get_product_trial_length( $product['product_id'] );
 
-        $renewalDate = WC_Subscriptions_Product::get_first_renewal_payment_time($product['product_id']);
+        $renewalDate = $this->adapter->get_first_renewal_payment_time($product['product_id']);
 
         // if the first payment after applying discount is zero, create subscription without initial addon
         //so that token amount would be auto refunded.
@@ -287,11 +293,22 @@ class RZP_Subscriptions
     {
         $sub          = $this->getWooCommerceSubscriptionFromOrderId($order->get_id());
 
-        $period       = $sub->get_billing_period();
+        // Use adapter methods if available on the subscription object wrapper, or fetch from product
+        // The adapter returns a wrapper or object.
+        // If we are using the wrapper, we might need to fetch product ID from it.
+        // But getPlanArguments takes $product and $order.
+        // Wait, the original code used $sub->get_billing_period().
+        // If $sub is our wrapper, we need to ensure it has these methods or we use the adapter directly with product ID.
+        // Let's check getPlanArguments context. It has $product array (from getProductFromOrder).
+        
+        $productId = $product['product_id'];
+        
+        $period       = $this->adapter->get_product_period($productId);
 
-        $interval     = $sub->get_billing_interval();
+        $interval     = $this->adapter->get_product_interval($productId);
 
-        $recurringFee = $sub->get_total();
+        $recurringFee = $this->adapter->get_total($sub);
+        $planName     = $period . "_" . $interval . "_" . $recurringFee . "_" . $this->getSetting('key_id');
 
         $planArgs = array(
             'period'   => $this->getProductPeriod($period),

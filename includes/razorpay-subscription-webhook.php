@@ -1,6 +1,7 @@
 <?php
 
 use Razorpay\Api\Errors;
+use Razorpay\Subscriptions\Contracts\SubscriptionPluginInterface;
 
 class RZP_Subscription_Webhook extends RZP_Webhook
 {
@@ -22,6 +23,18 @@ class RZP_Subscription_Webhook extends RZP_Webhook
      * @var WC_Razorpay
      */
     protected $razorpay;
+
+    /**
+     * @var SubscriptionPluginInterface
+     */
+    protected $adapter;
+
+    public function __construct($adapter)
+    {
+        $this->razorpay = new WC_Razorpay(false);
+        $this->api = $this->razorpay->getRazorpayApiInstance();
+        $this->adapter = $adapter;
+    }
 
     /**
      * Processes a subscription charged webhook
@@ -237,9 +250,11 @@ class RZP_Subscription_Webhook extends RZP_Webhook
         //If webhook trigger on first payment of subscription, then only mark payment completed
         if(($paymentCount == 0) and ($subscription->paid_count == 1) and ($subscription->auth_attempts == 0)) {
 
-            if ($wcSubscription->needs_payment() === true)
+            // if ($wcSubscription->needs_payment() === true)
+            // Use adapter
+            if ($this->adapter->needs_payment($wcSubscription) === true)
             {
-                $wcSubscription->payment_complete($paymentId);
+                $this->adapter->payment_complete($wcSubscription, $paymentId);
 
                 error_log("Subscription Charged successfully");
                 rzpSubscriptionInfoLog("Woocommerce orderId: $orderId Subscription charged for first payment");
@@ -367,7 +382,7 @@ class RZP_Subscription_Webhook extends RZP_Webhook
 
         if ( is_null( $renewal_order ) )
         {
-            $renewal_order = wcs_create_renewal_order( $wcSubscription );
+            $renewal_order = $this->adapter->create_renewal_order( $wcSubscription, $paymentId );
         }
 
         $renewal_order = $this->save_renewal_order($renewal_order, $paymentId);
@@ -404,7 +419,7 @@ class RZP_Subscription_Webhook extends RZP_Webhook
      */
     protected function get_woocoommerce_subscriptions_for_order($orderId)
     {
-        $wcSubscription = wcs_get_subscriptions_for_order($orderId);
+        $wcSubscription = $this->adapter->get_subscriptions_for_order($orderId);
 
         if (empty($wcSubscription) === true)
         {
@@ -466,10 +481,10 @@ class RZP_Subscription_Webhook extends RZP_Webhook
 
         $wcSubscription = array_values($wcSubscription)[0];
 
-        if ($wcSubscription->has_status('active') or
-            $wcSubscription->has_status('on-hold'))
+        if ($this->adapter->has_status($wcSubscription, 'active') or
+            $this->adapter->has_status($wcSubscription, 'on-hold'))
         {
-            $wcSubscription->update_status( 'cancelled' );
+            $this->adapter->cancel_subscription($wcSubscription);
 
             error_log("Subscription cancelled successfully");
             rzpSubscriptionInfoLog("Woocommerce orderId: $orderId Subscription cancel webhook finished and updated status");
@@ -483,7 +498,7 @@ class RZP_Subscription_Webhook extends RZP_Webhook
      * @param $subscription
      * @param $wcSubscription
      */
-    protected static function update_next_payment_date($subscription, $wcSubscription)
+    protected function update_next_payment_date($subscription, $wcSubscription)
     {
         if($subscription->paid_count === $subscription->total_count)
         {
@@ -501,7 +516,15 @@ class RZP_Subscription_Webhook extends RZP_Webhook
         }
 
         try {
-            $wcSubscription->update_dates( array('next_payment_date' => $new_payment_date) );
+            // $wcSubscription->update_dates( array('next_payment_date' => $new_payment_date) );
+            // We need to use the adapter here, but this method is static.
+            // We should change it to non-static or pass the adapter.
+            // Since we are in the class instance context when calling this (from processSubscriptionSuccess),
+            // we can change it to non-static.
+            // However, let's see where it is called.
+            // It's called from processSubscriptionSuccess: $this->update_next_payment_date($subscription, $wcSubscription);
+            // So we can make it non-static.
+            $this->adapter->update_next_payment_date($wcSubscription, $new_payment_date);
 
             error_log("Next payment date updated successfully");
 
@@ -582,9 +605,9 @@ class RZP_Subscription_Webhook extends RZP_Webhook
 
         $wcSubscription = array_values($wcSubscription)[0];
 
-        if ( $wcSubscription->has_status( 'active' ))
+        if ( $this->adapter->has_status($wcSubscription, 'active' ))
         {
-            $wcSubscription->update_status( 'on-hold' );
+            $this->adapter->pause_subscription($wcSubscription);
 
             error_log("Subscription paused successfully");
             rzpSubscriptionInfoLog("Woocommerce orderId: $orderId Subscription pause webhook finished and updated status");
@@ -662,9 +685,9 @@ class RZP_Subscription_Webhook extends RZP_Webhook
 
         $wcSubscription = array_values($wcSubscription)[0];
 
-        if ( $wcSubscription->has_status( 'on-hold' ))
+        if ( $this->adapter->has_status($wcSubscription, 'on-hold' ))
         {
-            $wcSubscription->update_status( 'active' );
+            $this->adapter->resume_subscription($wcSubscription);
 
             error_log("Subscription reactivated successfully");
             rzpSubscriptionInfoLog("Woocommerce orderId: $orderId Subscription resume webhook finished and reactivated");

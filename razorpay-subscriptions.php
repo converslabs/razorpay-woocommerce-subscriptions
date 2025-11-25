@@ -31,6 +31,9 @@ if ( ! is_dir( $pluginRoot ) )
 
 require_once $pluginRoot . '/woo-razorpay.php';
 require_once $pluginRoot . '/razorpay-sdk/Razorpay.php';
+require_once __DIR__ . '/includes/Contracts/SubscriptionPluginInterface.php';
+require_once __DIR__ . '/includes/Adapters/WCSubscriptionsAdapter.php';
+require_once __DIR__ . '/includes/Adapters/WPSubscriptionAdapter.php';
 require_once __DIR__ . '/includes/razorpay-subscription-webhook.php';
 require_once __DIR__ . '/includes/Errors/SubscriptionErrorCode.php';
 require_once __DIR__ . '/includes/razorpay-subscriptions.php';
@@ -40,6 +43,8 @@ use Razorpay\Api\Api;
 use Razorpay\Api\Errors;
 use Automattic\WooCommerce\Utilities\OrderUtil;
 use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
+use Razorpay\Subscriptions\Adapters\WCSubscriptionsAdapter;
+use Razorpay\Subscriptions\Adapters\WPSubscriptionAdapter;
 
 // Load this after the woo-razorpay plugin
 add_action('plugins_loaded', 'woocommerce_razorpay_subscriptions_init', 20);
@@ -128,6 +133,11 @@ function woocommerce_razorpay_subscriptions_init()
          */
         protected $subscriptions;
 
+        /**
+         * @var SubscriptionPluginInterface
+         */
+        protected $adapter;
+
         public $setting;
 
         const RAZORPAY_SUBSCRIPTION_ID       = 'razorpay_subscription_id';
@@ -142,7 +152,18 @@ function woocommerce_razorpay_subscriptions_init()
 
             $this->mergeSettingsWithParentPlugin();
 
+            $this->init_adapter();
+
             $this->setupExtraHooks();
+        }
+
+        protected function init_adapter()
+        {
+            if (class_exists('WC_Subscriptions')) {
+                $this->adapter = new WCSubscriptionsAdapter();
+            } elseif (class_exists('SpringDevs\Subscription\Sdevs_Subscription')) {
+                $this->adapter = new WPSubscriptionAdapter();
+            }
         }
 
         private function mergeSettingsWithParentPlugin()
@@ -189,8 +210,7 @@ function woocommerce_razorpay_subscriptions_init()
         {
             $enable = false;
 
-            if (class_exists(WC_Subscriptions_Cart::class) and
-                WC_Subscriptions_Cart::cart_contains_subscription())
+            if ($this->adapter && $this->adapter->cart_contains_subscription())
             {
                 $enable = true;
             }
@@ -233,7 +253,7 @@ function woocommerce_razorpay_subscriptions_init()
         {
             global $woocommerce;
 
-            $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'));
+            $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'), $this->adapter);
 
             try
             {
@@ -332,7 +352,7 @@ function woocommerce_razorpay_subscriptions_init()
         public function subscription_cancelled($subscription)
         {
             try {
-                $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'));
+                $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'), $this->adapter);
 
                 $parentOrder = $subscription->get_parent();
 
@@ -374,7 +394,7 @@ function woocommerce_razorpay_subscriptions_init()
 
         function subscription_on_hold($subscription){
             try {
-                $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'));
+                $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'), $this->adapter);
 
                 $parentOrder = $subscription->get_parent();
 
@@ -410,7 +430,7 @@ function woocommerce_razorpay_subscriptions_init()
 
         function  subscription_reactivate($subscription){
             try {
-                $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'));
+                $this->subscriptions = new RZP_Subscriptions($this->getSetting('key_id'), $this->getSetting('key_secret'), $this->adapter);
 
                 $parentOrder = $subscription->get_parent();
 
@@ -466,7 +486,14 @@ function woocommerce_razorpay_subscriptions_init()
 
 function razorpay_webhook_subscription_init()
 {
-    $rzpWebhook = new RZP_Subscription_Webhook();
+    $adapter = null;
+    if (class_exists('WC_Subscriptions')) {
+        $adapter = new WCSubscriptionsAdapter();
+    } elseif (class_exists('SpringDevs\Subscription\Sdevs_Subscription')) {
+        $adapter = new WPSubscriptionAdapter();
+    }
+
+    $rzpWebhook = new RZP_Subscription_Webhook($adapter);
 
     $rzpWebhook->process();
 }
