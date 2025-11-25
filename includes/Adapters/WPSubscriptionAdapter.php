@@ -115,7 +115,7 @@ class WPSubscriptionAdapter implements SubscriptionPluginInterface
 
     public function get_parent($subscription)
     {
-        return Helper::get_subscription_parent_order($subscription);
+        return Helper::get_parent_order($subscription);
     }
 
     public function has_status($subscription, $status)
